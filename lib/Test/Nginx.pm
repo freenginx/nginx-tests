@@ -306,7 +306,7 @@ sub has_version($) {
 	$self->{_configure_args} = `$NGINX -V 2>&1`
 		if !defined $self->{_configure_args};
 
-	$self->{_configure_args} =~ m!nginx version: nginx/([0-9.]+)!;
+	$self->{_configure_args} =~ m!nginx version: \w+/([0-9.]+)!;
 
 	my @v = split(/\./, $1);
 	my ($n, $v);
