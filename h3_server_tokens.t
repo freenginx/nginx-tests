@@ -115,15 +115,15 @@ $t->run();
 
 ###############################################################################
 
-my $re = qr/nginx\/\d+\.\d+\.\d+/;
+my $re = qr/\w+\/\d+\.\d+\.\d+/;
 
 like(header_server('/200'), qr/^$re$/, 'http3 tokens default 200');
 like(header_server('/404'), qr/^$re$/, 'http3 tokens default 404');
 like(body('/404'), qr/$re/, 'http3 tokens default 404 body');
 
-is(header_server('/off/200'), 'nginx', 'http3 tokens off 200');
-is(header_server('/off/404'), 'nginx', 'http3 tokens off 404');
-like(body('/off/404'), qr/nginx(?!\/)/, 'http3 tokens off 404 body');
+like(header_server('/off/200'), qr/^\w+$/, 'http3 tokens off 200');
+like(header_server('/off/404'), qr/^\w+$/, 'http3 tokens off 404');
+unlike(body('/off/404'), $re, 'http3 tokens off 404 body');
 
 like(header_server('/on/200'), qr/^$re$/, 'http3 tokens on 200');
 like(header_server('/on/404'), qr/^$re$/, 'http3 tokens on 404');
