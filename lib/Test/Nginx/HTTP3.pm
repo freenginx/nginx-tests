@@ -2087,14 +2087,14 @@ sub build_int {
 
 	} else {
 		pack("C*",
-			build_int_set->($value, 7, 3),
-			build_int_set->($value, 6, 0),
-			build_int_set->($value, 5, 0),
-			build_int_set->($value, 4, 0),
-			build_int_set->($value, 3, 0),
-			build_int_set->($value, 2, 0),
-			build_int_set->($value, 1, 0),
-			build_int_set->($value, 0, 0),
+			$build_int_set->($value, 7, 3),
+			$build_int_set->($value, 6, 0),
+			$build_int_set->($value, 5, 0),
+			$build_int_set->($value, 4, 0),
+			$build_int_set->($value, 3, 0),
+			$build_int_set->($value, 2, 0),
+			$build_int_set->($value, 1, 0),
+			$build_int_set->($value, 0, 0),
 		);
 	}
 }
