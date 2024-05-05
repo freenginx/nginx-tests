@@ -99,7 +99,15 @@ like(cert('RSA'), qr/CN=rsa/, 'ssl cert RSA');
 
 }
 
+TODO: {
+local $TODO = 'no TLSv1.3 sigalgs in Net::SSLeay (LibreSSL)'
+	if Net::SSLeay::constant("LIBRESSL_VERSION_NUMBER")
+	&& !$t->has_module('LibreSSL')
+	&& test_tls13();
+
 like(cert('ECDSA'), qr/CN=ec/, 'ssl cert ECDSA');
+
+}
 
 ###############################################################################
 
