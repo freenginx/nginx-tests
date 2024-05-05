@@ -336,7 +336,7 @@ sub has_daemon($) {
 	}
 
 	Test::More::plan(skip_all => "$daemon not found")
-		unless `which $daemon`;
+		unless `which $daemon 2>/dev/null`;
 
 	return $self;
 }
