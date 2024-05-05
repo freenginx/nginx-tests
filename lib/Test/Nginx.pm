@@ -872,6 +872,7 @@ sub http_start($;%) {
 			require IO::Socket::SSL;
 			IO::Socket::SSL->start_SSL(
 				$s,
+				SSL_version => 'SSLv23',
 				SSL_verify_mode =>
 					IO::Socket::SSL::SSL_VERIFY_NONE(),
 				%extra
