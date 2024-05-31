@@ -87,6 +87,12 @@ sub DESTROY {
 		Test::More::is($errors, '', 'no sanitizer errors');
 	}
 
+	if (Test::More->builder->expected_tests && $ENV{TEST_NGINX_VALGRIND}) {
+		my $errors = $self->read_file('valgrind.log');
+		$errors = join "\n", $errors =~ /^==\d+== .+/gm;
+		Test::More::is($errors, '', 'no valgrind errors');
+	}
+
 	if ($ENV{TEST_NGINX_CATLOG}) {
 		system("cat $self->{_testdir}/error.log");
 	}
@@ -365,7 +371,10 @@ sub try_run($$) {
 sub plan($) {
 	my ($self, $plan) = @_;
 
-	Test::More::plan(tests => $plan + 2);
+	$plan += 2;
+	$plan += 1 if $ENV{TEST_NGINX_VALGRIND};
+
+	Test::More::plan(tests => $plan);
 
 	return $self;
 }
@@ -395,7 +404,10 @@ sub run(;$) {
 		my @globals = $self->{_test_globals} ?
 			() : ('-g', "pid $testdir/nginx.pid; "
 			. "error_log $testdir/error.log debug;");
-		exec($NGINX, '-p', "$testdir/", '-c', 'nginx.conf',
+		my @valgrind = (not $ENV{TEST_NGINX_VALGRIND}) ?
+			() : ('valgrind', '-q',
+			"--log-file=$testdir/valgrind.log");
+		exec(@valgrind, $NGINX, '-p', "$testdir/", '-c', 'nginx.conf',
 			'-e', 'error.log', @globals)
 			or die "Unable to exec(): $!\n";
 	}
@@ -481,7 +493,7 @@ sub waitforfile($;$) {
 	# wait for file to appear
 	# or specified process to exit
 
-	for (1 .. 50) {
+	for (1 .. 100) {
 		return 1 if -e $file;
 		return 0 if $exited;
 		$exited = waitpid($pid, WNOHANG) != 0 if $pid;
