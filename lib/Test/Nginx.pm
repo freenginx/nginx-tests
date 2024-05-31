@@ -69,21 +69,19 @@ sub DESTROY {
 
 		my @alerts = $self->read_file('error.log') =~ /.+\[alert\].+/gm;
 
-		if ($^O eq 'solaris') {
-			$Test::Nginx::TODO = 'alerts' if @alerts
-				&& ! grep { $_ !~ /phantom event/ } @alerts;
-		}
-		if ($^O eq 'MSWin32') {
-			my $re = qr/CloseHandle|TerminateProcess/;
-			$Test::Nginx::TODO = 'alerts' if @alerts
-				&& ! grep { $_ !~ $re } @alerts;
-		}
+		local $Test::Nginx::TODO = 'alerts' if @alerts
+			&& $^O eq 'solaris'
+			&& ! grep { $_ !~ /phantom event/ } @alerts;
+
+		local $Test::Nginx::TODO = 'alerts' if @alerts
+			&& $^O eq 'MSWin32'
+			&& ! grep { $_ !~ qr/CloseHandle|TerminateProcess/ }
+				@alerts;
 
 		Test::More::is(join("\n", @alerts), '', 'no alerts');
 	}
 
 	if (Test::More->builder->expected_tests) {
-		local $Test::Nginx::TODO;
 		my $errors = $self->read_file('error.log');
 		$errors = join "\n", $errors =~ /.+Sanitizer.+/gm;
 		Test::More::is($errors, '', 'no sanitizer errors');
