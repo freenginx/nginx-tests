@@ -44,7 +44,7 @@ http {
     }
 
     server {
-        listen       127.0.0.1:8081 http2 ssl;
+        listen       127.0.0.1:8081 ssl;
         server_name  localhost;
 
         ssl_certificate_key localhost.key;
@@ -53,6 +53,7 @@ http {
         ssl_verify_client optional;
         ssl_client_certificate client.crt;
 
+        http2 on;
         http2_body_preread_size 128k;
 
         location / {
@@ -62,9 +63,10 @@ http {
     }
 
     server {
-        listen       127.0.0.1:8080 http2;
+        listen       127.0.0.1:8080;
         server_name  localhost;
 
+        http2 on;
         http2_body_preread_size 128k;
 
         location / {
@@ -129,11 +131,7 @@ sleep 1 if $^O eq 'MSWin32';
 
 $t->write_file('password', 'client');
 
-# suppress deprecation warning
-
-open OLDERR, ">&", \*STDERR; close STDERR;
 $t->run();
-open STDERR, ">&", \*OLDERR;
 
 ###############################################################################
 
