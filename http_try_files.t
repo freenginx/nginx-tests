@@ -21,7 +21,7 @@ use Test::Nginx;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http proxy rewrite/)->plan(10)
+my $t = Test::Nginx->new()->has(qw/http proxy rewrite/)->plan(12)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -79,6 +79,16 @@ http {
             try_files $uri =404;
         }
 
+        location ~ /alias-re-add/(.*) {
+            alias %%TESTDIR%%/$1;
+            try_files .htm .html =404;
+        }
+
+        location ~ /alias-re-prefix/(.*) {
+            alias %%TESTDIR%%/$1;
+            try_files $uri.htm $uri.html =404;
+        }
+
         location /alias-nested/ {
             alias %%TESTDIR%%/;
             location ~ html {
@@ -117,7 +127,19 @@ like(http_get('/file-dir/'), qr!404 Not!, 'file does not match dir');
 like(http_get('/dir-dir/'), qr!301 Moved Permanently!, 'dir matches dir');
 like(http_get('/dir-file/'), qr!404 Not!, 'dir does not match file');
 
-like(http_get('/alias-re.html'), qr!SEE THIS!, 'alias in regex location');
+like(http_get('/alias-re.html'), qr!SEE THIS|404 Not!,
+	'alias in regex location as root');
+like(http_get('/alias-re-add/found'), qr!SEE THIS!,
+	'alias in regex location with just extension');
+
+TODO: {
+local $TODO = 'not yet' unless $t->has_version('1.31.0');
+
+like(http_get('/alias-re-prefix/found'), qr!SEE THIS!,
+	'alias in regex location with uri prefix');
+
+}
+
 like(http_get('/alias-nested/found.html'), qr!SEE THIS!,
 	'alias with nested location');
 
