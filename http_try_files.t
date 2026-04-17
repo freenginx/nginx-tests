@@ -21,7 +21,7 @@ use Test::Nginx;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http proxy rewrite/)->plan(12)
+my $t = Test::Nginx->new()->has(qw/http proxy rewrite/)->plan(17)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -95,6 +95,34 @@ http {
                 try_files $uri =404;
             }
         }
+
+        location /alias-static/ {
+            alias %%TESTDIR%%/;
+            try_files /alias-static/found.html =404;
+        }
+
+        location /alias-vars/ {
+            alias %%TESTDIR%%/;
+            set $file /alias-vars/found.html;
+            try_files $file =404;
+        }
+
+        location /alias-fallback-static/ {
+            alias %%TESTDIR%%/;
+            try_files $uri /alias-fallback-static/found.html;
+        }
+
+        location /alias-fallback-vars/ {
+            alias %%TESTDIR%%/;
+            set $fallback /alias-fallback-vars/found.html;
+            try_files $uri $fallback;
+        }
+
+        location /alias-caseless/ {
+            alias %%TESTDIR%%/;
+            set $file /alias-caseless/found.html;
+            try_files $file =404;
+        }
     }
 
     server {
@@ -142,5 +170,48 @@ like(http_get('/alias-re-prefix/found'), qr!SEE THIS!,
 
 like(http_get('/alias-nested/found.html'), qr!SEE THIS!,
 	'alias with nested location');
+
+# when a file matches location prefix covered by alias,
+# prefix needs to be removed; this used to work only with
+# variables, but not with static strings
+
+TODO: {
+local $TODO = 'not yet' unless $t->has_version('1.31.0');
+
+like(http_get('/alias-static/found.html'), qr!SEE THIS!,
+	'alias with static string');
+
+}
+
+like(http_get('/alias-vars/found.html'), qr!SEE THIS!,
+	'alias with variables');
+
+# in contrast, for the fallback URI we don't need to remove
+# anything (yet it was removed with variables)
+
+like(http_get('/alias-fallback-static/notfound'), qr!SEE THIS!,
+	'alias fallback to matching static string');
+
+TODO: {
+local $TODO = 'not yet' unless $t->has_version('1.31.0');
+
+like(http_get('/alias-fallback-vars/notfound'), qr!SEE THIS!,
+	'alias fallback to matching string with variables');
+
+}
+
+# with caseless systems, aliased prefix needs to be checked in a
+# case-insensitive way; this automatically happens with "try_files $uri",
+# since aliased prefix is compared to the original request URI, but was
+# not working with configuration-provided paths
+
+SKIP: {
+skip 'not caseless os', 1
+	unless $^O eq 'MSWin32' or $^O eq 'darwin';
+local $TODO = 'not yet' unless $t->has_version('1.31.0');
+
+like(http_get('/alias-CASELESS/found.html'), qr!SEE THIS!, 'alias caseless');
+
+}
 
 ###############################################################################
