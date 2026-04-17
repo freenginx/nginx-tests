@@ -21,7 +21,7 @@ use Test::Nginx;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http proxy rewrite/)->plan(29)
+my $t = Test::Nginx->new()->has(qw/http proxy rewrite/)->plan(48)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -39,6 +39,25 @@ http {
         server_name  localhost;
 
         location / {
+            try_files $uri $uri.html $uri/ =404;
+        }
+
+        location /alias/ {
+            alias %%TESTDIR%%/;
+            try_files $uri $uri.html $uri/ =404;
+        }
+
+        location ~ /alias-re-add/(.*) {
+            alias %%TESTDIR%%/$1;
+            try_files "" .html / =404;
+        }
+
+        location ~ /alias-re-prefix/(.*) {
+            alias %%TESTDIR%%/$1;
+            try_files $uri $uri.html $uri/ =404;
+        }
+
+        location /uri/ {
             try_files $uri /fallback;
         }
 
@@ -77,16 +96,6 @@ http {
         location ~ /alias-re.html {
             alias %%TESTDIR%%/directory;
             try_files $uri =404;
-        }
-
-        location ~ /alias-re-add/(.*) {
-            alias %%TESTDIR%%/$1;
-            try_files .htm .html =404;
-        }
-
-        location ~ /alias-re-prefix/(.*) {
-            alias %%TESTDIR%%/$1;
-            try_files $uri.htm $uri.html =404;
         }
 
         location /alias-nested/ {
@@ -199,6 +208,7 @@ $t->write_file('found.html', 'SEE THIS');
 $t->write_file('nested', 'SEE THIS');
 mkdir($t->testdir() . '/directory');
 $t->write_file('directory/alias-re.html', 'SEE THIS');
+$t->write_file('directory/index.html', 'SEE THIS');
 mkdir($t->testdir() . '/prefix-proxy/');
 $t->write_file('prefix-proxy/found.html', 'SEE THIS');
 mkdir($t->testdir() . '/uri-after/');
@@ -207,7 +217,40 @@ $t->run();
 
 ###############################################################################
 
-like(http_get('/found.html'), qr!SEE THIS!, 'found');
+# basic tests with "try_files $uri $uri.html $uri/ =404"
+
+like(http_get('/found.html'), qr!SEE THIS!, 'root $uri');
+like(http_get('/found'), qr!SEE THIS!, 'root $uri.html');
+like(http_get('/directory'), qr!301 Moved Permanently!, 'root $uri/ redirect');
+like(http_get('/directory/'), qr!SEE THIS!, 'root $uri/ index');
+like(http_get('/notfound'), qr!404 Not!, 'root not found');
+
+like(http_get('/alias/found.html'), qr!SEE THIS!, 'alias $uri');
+like(http_get('/alias/found'), qr!SEE THIS!, 'alias $uri.html');
+like(http_get('/alias/directory'), qr!301 Moved Permanently!, 'alias $uri/ redirect');
+like(http_get('/alias/directory/'), qr!SEE THIS!, 'alias $uri/ index');
+like(http_get('/alias/notfound'), qr!404 Not!, 'alias not found');
+
+like(http_get('/alias-re-add/found.html'), qr!SEE THIS!, 'alias regex ""');
+like(http_get('/alias-re-add/found'), qr!SEE THIS!, 'alias regex .html');
+like(http_get('/alias-re-add/directory'), qr!301 Moved Permanently!, 'alias regex / redirect');
+like(http_get('/alias-re-add/directory/'), qr!SEE THIS!, 'alias regex / index');
+like(http_get('/alias-re-add/notfound'), qr!404 Not!, 'alias regex not found');
+
+TODO: {
+local $TODO = 'not yet' unless $t->has_version('1.31.0');
+
+like(http_get('/alias-re-prefix/found.html'), qr!SEE THIS!, 'alias regex $uri');
+like(http_get('/alias-re-prefix/found'), qr!SEE THIS!, 'alias regex $uri.html');
+like(http_get('/alias-re-prefix/directory'), qr!301 Moved Permanently!, 'alias regex $uri/ redirect');
+like(http_get('/alias-re-prefix/directory/'), qr!SEE THIS!, 'alias regex $uri/ index');
+
+}
+
+like(http_get('/alias-re-prefix/notfound'), qr!404 Not!, 'alias regex not found with prefix');
+
+# various specific tests
+
 like(http_get('/uri/notfound'), qr!X-URI: /fallback!, 'not found uri');
 like(http_get('/nouri/notfound'), qr!X-URI: /fallback!, 'not found nouri');
 like(http_get('/short/long'), qr!404 Not!, 'short uri in try_files');
