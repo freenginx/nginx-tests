@@ -21,7 +21,7 @@ use Test::Nginx;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http proxy rewrite/)->plan(23)
+my $t = Test::Nginx->new()->has(qw/http proxy rewrite/)->plan(29)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -154,6 +154,32 @@ http {
             try_files /found.html =404;
             proxy_pass http://127.0.0.1:8081/changed/;
         }
+
+        location /uri-after/ {
+            rewrite ^/uri-after/rewrite /uri-after/notfound break;
+            try_files /uri-after/found.html =404;
+            proxy_pass http://127.0.0.1:8081;
+        }
+
+        location /uri-after-alias/ {
+            alias %%TESTDIR%%/;
+            try_files /uri-after-alias/found.html =404;
+            proxy_pass http://127.0.0.1:8081;
+        }
+
+        location = /uri-after-alias-redirect {
+            try_files /notfound /uri-after-alias/found;
+        }
+
+        location ~ /uri-after-alias-add/(.*) {
+            alias %%TESTDIR%%/$1;
+            try_files .htm .html =404;
+            proxy_pass http://127.0.0.1:8081;
+        }
+
+        location = /uri-after-alias-add-redirect {
+            try_files /notfound /uri-after-alias-add/found;
+        }
     }
 
     server {
@@ -175,6 +201,8 @@ mkdir($t->testdir() . '/directory');
 $t->write_file('directory/alias-re.html', 'SEE THIS');
 mkdir($t->testdir() . '/prefix-proxy/');
 $t->write_file('prefix-proxy/found.html', 'SEE THIS');
+mkdir($t->testdir() . '/uri-after/');
+$t->write_file('uri-after/found.html', 'SEE THIS');
 $t->run();
 
 ###############################################################################
@@ -277,6 +305,51 @@ like(http_get('/prefix-proxy-short/foo'), qr!X-URI: /found.html!,
 like(http_get('/prefix-proxy-alias/nested-short'),
 	qr!X-URI: /prefix-proxy-alias/nested!,
 	'proxy after try_files with short uri, alias nested');
+
+}
+
+# try_files changes URI, so make sure that proxy_pass without the URI part
+# uses the modified URI, and not the original unparsed URI
+
+TODO: {
+local $TODO = 'not yet' unless $t->has_version('1.31.0');
+
+like(http_get('/uri-after/found'), qr!X-URI: /uri-after/found.html!,
+	'proxy without uri, unparsed uri not used');
+
+}
+
+like(http_get('/uri-after/rewrite'), qr!X-URI: /uri-after/found.html!,
+	'proxy without uri, after rewrite');
+
+TODO: {
+local $TODO = 'not yet' unless $t->has_version('1.31.0');
+
+like(http_get('/uri-after-alias/found'),
+	qr!X-URI: /uri-after-alias/found.html!,
+	'proxy without uri, alias');
+
+like(http_get('/uri-after-alias-redirect'),
+	qr!X-URI: /uri-after-alias/found.html!,
+	'proxy without uri, alias, after redirect');
+
+}
+
+# when try_files adds an extension in a regex location with alias,
+# this used to result in bogus URI (".html") and the r->add_uri_to_alias
+# flag set; this was handled by ngx_http_map_uri_to_alias() and worked for
+# static files, but produced unexpected results when proxying
+
+TODO: {
+local $TODO = 'not yet' unless $t->has_version('1.31.0');
+
+like(http_get('/uri-after-alias-add/found'),
+	qr!X-URI: /uri-after-alias-add/found.html!,
+	'proxy without uri, alias in regex location');
+
+like(http_get('/uri-after-alias-add-redirect'),
+	qr!X-URI: /uri-after-alias-add/found.html!,
+	'proxy without uri, alias in regex location, after redirect');
 
 }
 
