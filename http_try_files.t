@@ -21,7 +21,7 @@ use Test::Nginx;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http proxy rewrite/)->plan(18)
+my $t = Test::Nginx->new()->has(qw/http proxy rewrite/)->plan(23)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -128,6 +128,32 @@ http {
             set $file /alias-caseless/found.html;
             try_files $file =404;
         }
+
+        location /prefix-proxy/ {
+            try_files $uri =404;
+            proxy_pass http://127.0.0.1:8081/changed/;
+        }
+
+        location /prefix-proxy-alias/ {
+            alias %%TESTDIR%%/;
+            try_files $uri =404;
+            proxy_pass http://127.0.0.1:8081/changed/;
+
+            location /prefix-proxy-alias/nested-short {
+                try_files /prefix-proxy-alias/nested =404;
+                proxy_pass http://127.0.0.1:8081/changed/;
+            }
+        }
+
+        location /prefix-proxy-long/ {
+            try_files /prefix-proxy/found.html =404;
+            proxy_pass http://127.0.0.1:8081/changed/;
+        }
+
+        location /prefix-proxy-short/ {
+            try_files /found.html =404;
+            proxy_pass http://127.0.0.1:8081/changed/;
+        }
     }
 
     server {
@@ -143,9 +169,12 @@ http {
 
 EOF
 
+$t->write_file('found.html', 'SEE THIS');
+$t->write_file('nested', 'SEE THIS');
 mkdir($t->testdir() . '/directory');
 $t->write_file('directory/alias-re.html', 'SEE THIS');
-$t->write_file('found.html', 'SEE THIS');
+mkdir($t->testdir() . '/prefix-proxy/');
+$t->write_file('prefix-proxy/found.html', 'SEE THIS');
 $t->run();
 
 ###############################################################################
@@ -218,6 +247,36 @@ skip 'not caseless os', 1
 local $TODO = 'not yet' unless $t->has_version('1.31.0');
 
 like(http_get('/alias-CASELESS/found.html'), qr!SEE THIS!, 'alias caseless');
+
+}
+
+# when an URI is changed by try_files, this could be a surprise
+# for proxy_pass with URI part
+
+like(http_get('/prefix-proxy/found.html'), qr!X-URI: /changed/found.html!,
+	'proxy after try_files');
+like(http_get('/prefix-proxy-alias/found.html'),
+	qr!X-URI: /changed/found.html!, 'proxy after try_files with alias');
+
+TODO: {
+local $TODO = 'not yet' unless $t->has_version('1.31.0');
+
+like(http_get('/prefix-proxy-long/found.html'),
+	qr!X-URI: /prefix-proxy/found.html!, 'proxy after try_files no match');
+
+}
+
+TODO: {
+todo_skip 'leaves coredump', 2
+	unless $t->has_version('1.31.0') or $ENV{TEST_NGINX_UNSAFE};
+local $TODO = 'not yet', $t->todo_alerts()
+	unless $t->has_version('1.31.0');
+
+like(http_get('/prefix-proxy-short/foo'), qr!X-URI: /found.html!,
+	'proxy after try_files with short uri');
+like(http_get('/prefix-proxy-alias/nested-short'),
+	qr!X-URI: /prefix-proxy-alias/nested!,
+	'proxy after try_files with short uri, alias nested');
 
 }
 
