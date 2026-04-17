@@ -21,7 +21,7 @@ use Test::Nginx;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http proxy rewrite/)->plan(17)
+my $t = Test::Nginx->new()->has(qw/http proxy rewrite/)->plan(18)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -91,8 +91,13 @@ http {
 
         location /alias-nested/ {
             alias %%TESTDIR%%/;
+
             location ~ html {
                 try_files $uri =404;
+            }
+
+            location /alias-nested/prefix {
+                try_files /found.html =404;
             }
         }
 
@@ -169,7 +174,9 @@ like(http_get('/alias-re-prefix/found'), qr!SEE THIS!,
 }
 
 like(http_get('/alias-nested/found.html'), qr!SEE THIS!,
-	'alias with nested location');
+	'alias with nested regex location');
+like(http_get('/alias-nested/prefix'), qr!SEE THIS!,
+	'alias with nested prefix location');
 
 # when a file matches location prefix covered by alias,
 # prefix needs to be removed; this used to work only with
