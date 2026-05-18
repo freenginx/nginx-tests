@@ -2,7 +2,7 @@
 
 # (C) Maxim Dounin
 
-# Test for scgi backend with chunked request body.
+# Test for scgi backend with request body.
 
 ###############################################################################
 
@@ -57,32 +57,13 @@ $t->run()->waitforsocket('127.0.0.1:' . port(8081));
 ###############################################################################
 
 
-like(http_get('/'), qr/X-Body: /, 'scgi no body');
+like(http_get('/'), qr/X-Body: ''/, 'scgi no body');
 
-like(http_get_length('/', ''), qr/X-Body: /, 'scgi empty body');
-like(http_get_length('/', 'foobar'), qr/X-Body: foobar/, 'scgi body');
+like(http_get_length('/', 'foobar'), qr/X-Body: 'foobar'/, 'scgi body');
+like(http_get_length('/', ''), qr/X-Body: ''/, 'scgi empty body');
 
-like(http(<<EOF), qr/X-Body: foobar/, 'scgi chunked');
-GET / HTTP/1.1
-Host: localhost
-Connection: close
-Transfer-Encoding: chunked
-
-6
-foobar
-0
-
-EOF
-
-like(http(<<EOF), qr/X-Body: /, 'scgi empty chunked');
-GET / HTTP/1.1
-Host: localhost
-Connection: close
-Transfer-Encoding: chunked
-
-0
-
-EOF
+like(http_get_chunked('/', 'foobar'), qr/X-Body: 'foobar'/, 'scgi chunked');
+like(http_get_chunked('/', ''), qr/X-Body: ''/, 'scgi empty chunked');
 
 ###############################################################################
 
@@ -96,6 +77,22 @@ Connection: close
 Content-Length: $length
 
 $body
+EOF
+}
+
+sub http_get_chunked {
+	my ($url, $body) = @_;
+	my $length = sprintf("%x", length $body);
+	return http(<<EOF);
+GET $url HTTP/1.1
+Host: localhost
+Connection: close
+Transfer-Encoding: chunked
+
+$length
+$body
+0
+
 EOF
 }
 
@@ -123,7 +120,7 @@ sub scgi_daemon {
 		$request->connection()->print(<<EOF);
 Location: http://localhost/redirect
 Content-Type: text/html
-X-Body: $body
+X-Body: '$body'
 
 SEE-THIS
 EOF
