@@ -24,7 +24,7 @@ select STDOUT; $| = 1;
 eval { require SCGI; };
 plan(skip_all => 'SCGI not installed') if $@;
 
-my $t = Test::Nginx->new()->has(qw/http scgi/)->plan(5)
+my $t = Test::Nginx->new()->has(qw/http scgi/)->plan(7)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -46,6 +46,18 @@ http {
             scgi_param SCGI 1;
             scgi_param REQUEST_URI $request_uri;
         }
+
+        location /nb/ {
+            scgi_pass 127.0.0.1:8081;
+            scgi_param SCGI 1;
+            scgi_param REQUEST_URI $request_uri;
+            scgi_request_buffering off;
+        }
+
+        location /discard/ {
+            client_max_body_size 1;
+            error_page 413 /error413;
+        }
     }
 }
 
@@ -64,6 +76,17 @@ like(http_get_length('/', ''), qr/X-Body: ''/, 'scgi empty body');
 
 like(http_get_chunked('/', 'foobar'), qr/X-Body: 'foobar'/, 'scgi chunked');
 like(http_get_chunked('/', ''), qr/X-Body: ''/, 'scgi empty chunked');
+
+TODO: {
+local $TODO = 'not yet' unless $t->has_version('1.31.1');
+
+like(http_get_nobuf('/nb/', 'foo', 'bar'), qr/X-Body: 'foobar'/,
+	'scgi no request buffering');
+
+}
+
+like(http_get_nobuf('/discard/', 'foo', 'bar'), qr/X-Body: ''/,
+	'scgi discard body');
 
 ###############################################################################
 
@@ -92,6 +115,18 @@ Transfer-Encoding: chunked
 $length
 $body
 0
+
+EOF
+}
+
+sub http_get_nobuf {
+	my ($url, $body1, $body2) = @_;
+	my $length = length($body1) + length($body2);
+	return http(<<EOF . $body1, sleep => 0.1, body => $body2);
+GET $url HTTP/1.1
+Host: localhost
+Connection: close
+Content-Length: $length
 
 EOF
 }
