@@ -1,5 +1,6 @@
 #!/usr/bin/perl
 
+# (C) Maxim Dounin
 # (C) Sergey Kandaurov
 # (C) Nginx, Inc.
 
@@ -23,7 +24,7 @@ select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
 my $t = Test::Nginx->new()->has(qw/http rewrite uwsgi/)
-	->has_daemon('uwsgi')->plan(5)
+	->has_daemon('uwsgi')->plan(7)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -45,6 +46,17 @@ http {
         location / {
             uwsgi_pass 127.0.0.1:8081;
             uwsgi_param CONTENT_LENGTH $content_length if_not_empty;
+        }
+
+        location /nb/ {
+            uwsgi_pass 127.0.0.1:8081;
+            uwsgi_param CONTENT_LENGTH $content_length if_not_empty;
+            uwsgi_request_buffering off;
+        }
+
+        location /discard/ {
+            client_max_body_size 1;
+            error_page 413 /error413;
         }
     }
 }
@@ -95,6 +107,12 @@ like(http_get_length('/', ''), qr/cl=0 ''/, 'uwsgi empty body');
 like(http_get_chunked('/', 'foobar'), qr/cl=6 'foobar'/, 'uwsgi chunked');
 like(http_get_chunked('/', ''), qr/cl=0 ''/, 'uwsgi empty chunked');
 
+like(http_get_nobuf('/', 'foo', 'bar'), qr/cl=6 'foobar'/,
+	'uwsgi no request buffering');
+
+like(http_get_nobuf('/discard/', 'foo', 'bar'), qr/SEE-THIS/,
+	'uwsgi discard body');
+
 ###############################################################################
 
 sub http_get_length {
@@ -122,6 +140,18 @@ Transfer-Encoding: chunked
 $length
 $body
 0
+
+EOF
+}
+
+sub http_get_nobuf {
+	my ($url, $body1, $body2) = @_;
+	my $length = length($body1) + length($body2);
+	return http(<<EOF . $body1, sleep => 0.1, body => $body2);
+GET $url HTTP/1.1
+Host: localhost
+Connection: close
+Content-Length: $length
 
 EOF
 }
