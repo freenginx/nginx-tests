@@ -21,7 +21,7 @@ use Test::Nginx;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http rewrite proxy/)->plan(23)
+my $t = Test::Nginx->new()->has(qw/http rewrite proxy/)->plan(24)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -126,7 +126,13 @@ http {
             return 200 "uri:$uri args:$args";
         }
 
-        location /capturedup {
+        location /capture_dup {
+            rewrite ^(.*) $1?c=$1;
+            return 200 "uri:$uri args:$args";
+        }
+
+        location /capture_another {
+            rewrite ^(.*) $1?c=d;
             rewrite ^(.*) $1?c=$1;
             return 200 "uri:$uri args:$args";
         }
@@ -233,9 +239,22 @@ like(http_get('/capture/%25?a=b'),
 	qr!^uri:/capture/% args:c=d&a=b$!ms,
 	'escape with added args');
 
-like(http_get('/capturedup/%25?a=b'),
-	qr!^uri:/capturedup/% args:c=/capturedup/%25&a=b$!ms,
-	'escape with added args');
+like(http_get('/capture_dup/%25?a=b'),
+	qr!^uri:/capture_dup/% args:c=/capture_dup/%25&a=b$!ms,
+	'escape with added args and duplicate captures');
+
+TODO: {
+local $TODO = 'not yet'
+	unless $t->has_version('1.31.1');
+todo_skip 'might coredump', 1
+	unless $t->has_version('1.31.1')
+	or $ENV{TEST_NGINX_UNSAFE};
+
+like(http_get('/capture_another/%25?a=b'),
+	qr!^uri:/capture_another/% args:c=/capture_another/%25&c=d&a=b$!ms,
+	'escape with added args and another rewrite');
+
+}
 
 # break
 
