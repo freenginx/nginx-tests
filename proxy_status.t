@@ -57,7 +57,7 @@ http {
 EOF
 
 $t->run_daemon(\&http_daemon);
-$t->try_run('no proxy_allow_http09')->plan(13);
+$t->try_run('no proxy_allow_http09')->plan(14);
 $t->waitforsocket('127.0.0.1:' . port(8081));
 
 ###############################################################################
@@ -78,6 +78,14 @@ like(http_get('/notext'), qr!^HTTP/1.1 200!s, 'status without text');
 like(http_get('/http09'), qr!^HTTP/1.1 502 !s, 'http 0.9');
 like(http_get('/allow09/http09'), qr!^HTTP/1.1 200 .*HTTP/0.9!s,
 	'http 0.9 allowed');
+
+TODO: {
+local $TODO = 'not yet' unless $t->has_version('1.31.1');
+
+like(http_get('/allow09/split'), qr!^HTTP/1.1 200 OK.*HTTP/0.9!s,
+	'http 0.9 split between packets');
+
+}
 
 # spaces between digits not allowed since 1.29.1
 
@@ -156,6 +164,12 @@ sub http_daemon {
 		} elsif ($uri =~ m!/http09!) {
 
 			print $client 'It is HTTP/0.9 response' . CRLF;
+
+		} elsif ($uri =~ m!/split!) {
+
+			print $client 'HTTP';
+			select undef, undef, undef, 0.1;
+			print $client '/0.9 split between packets'. CRLF;
 
 		} elsif ($uri =~ m!/spaces!) {
 

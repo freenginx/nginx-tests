@@ -25,7 +25,7 @@ eval { require SCGI; };
 plan(skip_all => 'SCGI not installed') if $@;
 
 my $t = Test::Nginx->new()
-	->has(qw/http scgi/)->plan(11)
+	->has(qw/http scgi/)->plan(12)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -89,6 +89,18 @@ like(http_get('/001'), qr!^HTTP/1.1 502 !s, 'status 001 rejected');
 
 }
 
+TODO: {
+local $TODO = 'not yet'
+	unless $t->has_version('1.31.1');
+todo_skip 'leaves coredump', 1
+	unless $t->has_version('1.31.1')
+	or $ENV{TEST_NGINX_UNSAFE};
+
+like(http_get('/split'), qr!^HTTP/1.1 200 .*HTTP-Header: foo!s,
+	'status line split between packets');
+
+}
+
 ###############################################################################
 
 sub scgi_daemon {
@@ -146,6 +158,12 @@ sub scgi_daemon {
 
 		} elsif ($uri eq '/001') {
 			$c->print("Status: 001 Invalid\n\n");
+
+		} elsif ($uri eq '/split') {
+			$c->print("HTTP");
+			select undef, undef, undef, 0.1;
+			$c->print("-Header: foo\n");
+			$c->print("Status: 200 OK\n\n");
 		}
 	}
 }
