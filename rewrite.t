@@ -21,7 +21,7 @@ use Test::Nginx;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http rewrite proxy/)->plan(24)
+my $t = Test::Nginx->new()->has(qw/http rewrite proxy/)->plan(25)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -134,6 +134,11 @@ http {
         location /capture_another {
             rewrite ^(.*) $1?c=d;
             rewrite ^(.*) $1?c=$1;
+            return 200 "uri:$uri args:$args";
+        }
+
+        location /capture_nested {
+            rewrite ^((.*)) /?c=$1&d=$2;
             return 200 "uri:$uri args:$args";
         }
 
@@ -253,6 +258,19 @@ todo_skip 'might coredump', 1
 like(http_get('/capture_another/%25?a=b'),
 	qr!^uri:/capture_another/% args:c=/capture_another/%25&c=d&a=b$!ms,
 	'escape with added args and another rewrite');
+
+}
+
+TODO: {
+local $TODO = 'not yet'
+	unless $t->has_version('1.31.2');
+todo_skip 'might coredump', 1
+	unless $t->has_version('1.31.2')
+	or $ENV{TEST_NGINX_UNSAFE};
+
+like(http_get('/capture_nested/%25?a=b'),
+	qr!^uri:/ args:c=/capture_nested/%25&d=/capture_nested/%25&a=b$!ms,
+	'escape with nested captures');
 
 }
 
