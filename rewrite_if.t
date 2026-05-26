@@ -22,7 +22,7 @@ use Test::Nginx;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http rewrite/)->plan(33)
+my $t = Test::Nginx->new()->has(qw/http rewrite/)->plan(35)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -134,6 +134,18 @@ http {
                 return 204;
             }
         }
+
+        location /relative {
+            if (-f file) {
+                return 204;
+            }
+        }
+
+        location /relative_var {
+            if (-f $arg_c) {
+                return 204;
+            }
+        }
     }
 }
 
@@ -189,6 +201,14 @@ unlike(http_get('/exec?c=file'), qr/ 204 /, 'executable file');
 like(http_get('/exec?c=dir'), qr/ 204 /, 'executable dir');
 like(http_get('/not_exec?c=file'), qr/ 204 /, 'not executable file');
 unlike(http_get('/not_exec?c=dir'), qr/ 204 /, 'not executable dir');
+
+}
+
+TODO: {
+local $TODO = 'not yet' unless $t->has_version('1.31.2');
+
+like(http_get('/relative'), qr/ 204 /, 'relative file name');
+like(http_get('/relative_var?c=file'), qr/ 204 /, 'relative file name var');
 
 }
 
