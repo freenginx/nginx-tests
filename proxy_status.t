@@ -80,7 +80,8 @@ like(http_get('/allow09/http09'), qr!^HTTP/1.1 200 .*HTTP/0.9!s,
 	'http 0.9 allowed');
 
 TODO: {
-local $TODO = 'not yet' unless $t->has_version('1.31.1');
+local $TODO = 'not yet' unless $t->has_version('1.31.1')
+	or $t->has_version('1.30.1');
 
 like(http_get('/allow09/split'), qr!^HTTP/1.1 200 OK.*HTTP/0.9!s,
 	'http 0.9 split between packets');

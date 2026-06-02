@@ -89,9 +89,9 @@ $t->run();
 
 TODO: {
 local $TODO = 'not yet'
-        unless $t->has_version('1.31.1');
+        unless $t->has_version('1.31.1') or $t->has_version('1.30.1');
 todo_skip 'might coredump', 1
-	unless $t->has_version('1.31.1')
+	unless $t->has_version('1.31.1') or $t->has_version('1.30.1')
 	or $ENV{TEST_NGINX_UNSAFE};
 
 like(http_get('/multi'), qr/^CCTT&#65536;&#65536;$/m, 'multiple buffers');

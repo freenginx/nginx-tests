@@ -135,7 +135,7 @@ TODO: {
 local $TODO = 'not yet'
 	unless $t->has_version('1.31.1');
 todo_skip 'might coredump', 1
-	unless $t->has_version('1.31.1')
+	unless $t->has_version('1.31.1') or $t->has_version('1.30.1')
 	or $ENV{TEST_NGINX_UNSAFE};
 
 # set after a rewrite with arguments,

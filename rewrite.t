@@ -250,9 +250,9 @@ like(http_get('/capture_dup/%25?a=b'),
 
 TODO: {
 local $TODO = 'not yet'
-	unless $t->has_version('1.31.1');
+	unless $t->has_version('1.31.1') or $t->has_version('1.30.1');
 todo_skip 'might coredump', 1
-	unless $t->has_version('1.31.1')
+	unless $t->has_version('1.31.1') or $t->has_version('1.30.1')
 	or $ENV{TEST_NGINX_UNSAFE};
 
 like(http_get('/capture_another/%25?a=b'),
@@ -263,9 +263,9 @@ like(http_get('/capture_another/%25?a=b'),
 
 TODO: {
 local $TODO = 'not yet'
-	unless $t->has_version('1.31.2');
+	unless $t->has_version('1.31.2') or $t->has_version('1.30.1');
 todo_skip 'might coredump', 1
-	unless $t->has_version('1.31.2')
+	unless $t->has_version('1.31.2') or $t->has_version('1.30.1')
 	or $ENV{TEST_NGINX_UNSAFE};
 
 like(http_get('/capture_nested/%25?a=b'),
