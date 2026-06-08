@@ -22,7 +22,7 @@ use Test::Nginx;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http rewrite map/)->plan(6)
+my $t = Test::Nginx->new()->has(qw/http rewrite map/)->plan(7)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -69,6 +69,17 @@ http {
             rewrite ^(?<arg_foo>.*) /;
             return 200 "value: $arg_foo\n";
         }
+
+        location /set_args {
+            if ($arg_foo ~ "(?<args>.*)") {}
+            proxy_pass http://127.0.0.1:8081;
+        }
+    }
+
+    server {
+        listen       127.0.0.1:8081;
+        server_name  localhost;
+        return 200 "value: $args";
     }
 
     map $uri $late {
@@ -109,5 +120,16 @@ like(http_get('/prefix?foo=arg'), qr!value: arg!, 'value from arg');
 
 like(http_get('/prefix/rewrite?foo=arg'), qr!value: /prefix/rewrite!,
 	'value from capture overrides arg');
+
+# when a named capture changes a variable with v->set_handler, notably $args
+# or $limit_rate, the handler should be called
+
+TODO: {
+local $TODO = 'not yet' unless $t->has_version('1.31.3');
+
+like(http_get('/set_args?foo=arg'), qr!value: arg!,
+	'variable with set_handler');
+
+}
 
 ###############################################################################
