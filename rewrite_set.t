@@ -56,8 +56,8 @@ http {
         }
 
         location /if/ {
-            if ($uri ~ "(.*)") {
-                set $temp "set_$1";
+            if ($uri ~ "(/if/)(.*)") {
+                set $temp "set_$1$2";
             }
             return 200 "X${temp}X";
         }
