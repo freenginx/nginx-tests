@@ -21,7 +21,8 @@ use Test::Nginx;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http uwsgi/)->has_daemon('uwsgi')->plan(8)
+my $t = Test::Nginx->new()
+	->has(qw/http uwsgi rewrite map/)->has_daemon('uwsgi')->plan(9)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -38,6 +39,10 @@ http {
         server 127.0.0.1:8081;
     }
 
+    map $uri $map_capture {
+       ~(?<capture>.*) $capture;
+    }
+
     server {
         listen       127.0.0.1:8080;
         server_name  localhost;
@@ -51,6 +56,12 @@ http {
         location /var {
             uwsgi_pass $arg_b;
             uwsgi_param SERVER_PROTOCOL $server_protocol;
+        }
+
+        location /map/ {
+            uwsgi_pass 127.0.0.1:8081;
+            uwsgi_param SERVER_PROTOCOL $server_protocol;
+            uwsgi_param HTTP_FOO "foo $capture $map_capture end";
         }
     }
 }
@@ -123,6 +134,17 @@ like($r, qr/X-Cookie: foo; bar; bazz/,
 	'uwsgi with multiple Cookie headers');
 like($r, qr/X-Foo: foo, bar, bazz/,
 	'uwsgi with multiple unknown headers');
+
+TODO: {
+todo_skip 'might coredump', 1
+	unless $t->has_version('1.31.3')
+	or $ENV{TEST_NGINX_UNSAFE};
+local $TODO = 'not yet', $t->todo_alerts();
+
+like(http_get('/map/test-long-uri'), qr!foo .* /map/test-long-uri end!,
+	'uwsgi params and map with side effects');
+
+}
 
 ###############################################################################
 

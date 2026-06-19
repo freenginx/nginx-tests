@@ -24,7 +24,7 @@ select STDOUT; $| = 1;
 eval { require SCGI; };
 plan(skip_all => 'SCGI not installed') if $@;
 
-my $t = Test::Nginx->new()->has(qw/http scgi/)->plan(10)
+my $t = Test::Nginx->new()->has(qw/http scgi rewrite map/)->plan(11)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -39,6 +39,10 @@ http {
 
     upstream u {
         server 127.0.0.1:8081;
+    }
+
+    map $uri $map_capture {
+       ~(?<capture>.*) $capture;
     }
 
     server {
@@ -58,6 +62,12 @@ http {
             scgi_param REQUEST_URI $request_uri;
         }
 
+        location /map/ {
+            scgi_pass 127.0.0.1:8081;
+            scgi_param SCGI 1;
+            scgi_param REQUEST_URI $request_uri;
+            scgi_param HTTP_FOO "foo $capture $map_capture end";
+        }
     }
 }
 
@@ -102,6 +112,17 @@ like($r, qr/X-Cookie: foo; bar; bazz/,
 	'scgi with multiple Cookie headers');
 like($r, qr/X-Foo: foo, bar, bazz/,
 	'scgi with multiple unknown headers');
+
+TODO: {
+todo_skip 'might coredump', 1
+	unless $t->has_version('1.31.3')
+	or $ENV{TEST_NGINX_UNSAFE};
+local $TODO = 'not yet', $t->todo_alerts();
+
+like(http_get('/map/test-long-uri'), qr!foo .* /map/test-long-uri end!,
+	'scgi params and map with side effects');
+
+}
 
 ###############################################################################
 

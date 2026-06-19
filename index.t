@@ -22,7 +22,7 @@ use Test::Nginx;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http/)->plan(14)
+my $t = Test::Nginx->new()->has(qw/http rewrite map/)->plan(16)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -34,6 +34,14 @@ events {
 
 http {
     %%TEST_GLOBALS_HTTP%%
+
+    map $uri $map_capture {
+       ~(?<capture>.*) $capture;
+    }
+
+    map $uri $map_shrink {
+       ~(?<shrink>) "";
+    }
 
     server {
         listen       127.0.0.1:8080;
@@ -86,6 +94,16 @@ http {
                 log_not_found off;
             }
         }
+
+        location /map/test-long-uri/ {
+            alias %%TESTDIR%%/;
+            index index.$capture.$map_capture /index.html;
+        }
+        location /shrink/ {
+            alias %%TESTDIR%%/;
+            set $shrink "some-long-variable-value";
+            index index$shrink$map_shrink.html /index.html;
+        }
     }
 }
 
@@ -118,6 +136,25 @@ like(http_get('/not_found/'), qr/404 Not Found/, 'not found');
 like(http_get('/not_found/off/'), qr/404 Not Found/, 'not found log off');
 like(http_get('/forbidden/'), qr/403 Forbidden/, 'directory access denied');
 like(http_get('/index.html/'), qr/404 Not Found/, 'not a directory');
+
+TODO: {
+todo_skip 'might coredump', 1
+	unless $t->has_version('1.31.3')
+	or $ENV{TEST_NGINX_UNSAFE};
+local $TODO = 'not yet', $t->todo_alerts();
+
+like(http_get('/map/test-long-uri/'), qr!X-URI: /index.html\x0d($).*body!ms,
+	'index and map with side effects');
+
+}
+
+TODO: {
+local $TODO = 'not yet' unless $t->has_version('1.31.3');
+
+like(http_get('/shrink/'), qr!X-URI: /shrink/index.html\x0d?($).*body!ms,
+	'index and map with shrink side effect');
+
+}
 
 $t->stop();
 

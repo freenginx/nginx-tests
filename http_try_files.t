@@ -21,7 +21,7 @@ use Test::Nginx;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http proxy rewrite/)->plan(48)
+my $t = Test::Nginx->new()->has(qw/http proxy rewrite map/)->plan(49)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -33,6 +33,10 @@ events {
 
 http {
     %%TEST_GLOBALS_HTTP%%
+
+    map $uri $map_capture {
+       ~(?<capture>.*) $capture;
+    }
 
     server {
         listen       127.0.0.1:8080;
@@ -188,6 +192,10 @@ http {
 
         location = /uri-after-alias-add-redirect {
             try_files /notfound /uri-after-alias-add/found;
+        }
+
+        location /map/ {
+            try_files /$capture/$map_capture =404;
         }
     }
 
@@ -393,6 +401,17 @@ like(http_get('/uri-after-alias-add/found'),
 like(http_get('/uri-after-alias-add-redirect'),
 	qr!X-URI: /uri-after-alias-add/found.html!,
 	'proxy without uri, alias in regex location, after redirect');
+
+}
+
+TODO: {
+todo_skip 'might coredump', 1
+	unless $t->has_version('1.31.3')
+	or $ENV{TEST_NGINX_UNSAFE};
+local $TODO = 'not yet', $t->todo_alerts();
+
+like(http_get('/map/test-long-uri'), qr!404 Not!,
+	'try_files and map with side effects');
 
 }
 

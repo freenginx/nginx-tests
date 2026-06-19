@@ -25,7 +25,7 @@ eval { require FCGI; };
 plan(skip_all => 'FCGI not installed') if $@;
 plan(skip_all => 'win32') if $^O eq 'MSWin32';
 
-my $t = Test::Nginx->new()->has(qw/http fastcgi/)->plan(4)
+my $t = Test::Nginx->new()->has(qw/http fastcgi rewrite map/)->plan(5)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -38,6 +38,10 @@ events {
 http {
     %%TEST_GLOBALS_HTTP%%
 
+    map $uri $map_capture {
+       ~(?<capture>.*) $capture;
+    }
+
     server {
         listen       127.0.0.1:8080;
         server_name  localhost;
@@ -45,6 +49,12 @@ http {
         location / {
             fastcgi_pass 127.0.0.1:8081;
             fastcgi_param HTTP_X_BLAH "blah";
+        }
+
+        location /map/ {
+            fastcgi_pass 127.0.0.1:8081;
+            fastcgi_param REQUEST_URI $request_uri;
+            fastcgi_param HTTP_FOO "foo $capture $map_capture end";
         }
     }
 }
@@ -84,6 +94,17 @@ like($r, qr/X-Cookie: foo; bar; bazz/,
 
 like($r, qr/X-Foo: foo, bar, bazz/,
 	'fastcgi with multiple unknown headers');
+
+TODO: {
+todo_skip 'might coredump', 1
+	unless $t->has_version('1.31.3')
+	or $ENV{TEST_NGINX_UNSAFE};
+local $TODO = 'not yet', $t->todo_alerts();
+
+like(http_get('/map/test-long-uri'), qr!foo .* /map/test-long-uri end!,
+	'fastcgi params and map with side effects');
+
+}
 
 ###############################################################################
 
