@@ -1,5 +1,6 @@
 #!/usr/bin/perl
 
+# (C) Maxim Dounin
 # (C) Sergey Kandaurov
 # (C) Nginx, Inc.
 
@@ -22,7 +23,7 @@ use Test::Nginx;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http rewrite ssi/)->plan(10);
+my $t = Test::Nginx->new()->has(qw/http rewrite ssi map/)->plan(16);
 
 $t->write_file_expand('nginx.conf', <<'EOF');
 
@@ -35,6 +36,21 @@ events {
 
 http {
     %%TEST_GLOBALS_HTTP%%
+
+    map $uri $map_capture {
+        ~(?<capture>.*) $capture;
+    }
+
+    map prefix:$capture $map_volatile {
+        volatile;
+        ~(?<capture>.*) $capture;
+    }
+
+    map $args $map_flush {
+        volatile;
+        default wrong;
+        secret  good;
+    }
 
     server {
         listen       127.0.0.1:8080;
@@ -75,6 +91,40 @@ http {
             if ($uri ~ "(.*)") {
                 set $temp "set_$1";
             }
+            return 200 "X${temp}X";
+        }
+
+        location /map {
+            set $temp "$capture $map_capture";
+            return 200 "X${temp}X";
+        }
+
+        location /map_volatile {
+            set $temp "$map_volatile";
+            return 200 "X${temp}X";
+        }
+
+        location /map_root {
+            root html/$pid;
+            return 200 "X${map_volatile}X${document_root}X";
+        }
+
+        location /map_root_root {
+            root html/$pid;
+            return 200 "X${map_volatile}X${document_root}${realpath_root}X";
+        }
+
+        location /map_root_overflow {
+            root html/$capture/$map_capture;
+            set $temp "$document_root";
+            return 200 "X${temp}X";
+        }
+
+        location /map_flush {
+            set $args "wrong";
+            set $temp "$map_flush";
+            set $args "secret";
+            set $temp "$temp:$map_flush";
             return 200 "X${temp}X";
         }
 
@@ -146,6 +196,48 @@ like(http_get('/args/%20x'), qr!Xset_/args/%20xX!,
 	'set capture after rewrite with arguments');
 
 }
+
+TODO: {
+todo_skip 'might coredump', 5
+	unless $t->has_version('1.31.3')
+	or $ENV{TEST_NGINX_UNSAFE};
+local $TODO = 'not yet', $t->todo_alerts();
+
+# map can change other variables via named captures,
+# resulting in invalid buffer length calculations
+
+like(http_get('/map'), qr!X.*/mapX!, 'set and map side effects');
+
+# non-cacheable variable can change its length on each evaluation,
+# resulting in invalid buffer length calculations
+
+like(http_get('/map_volatile'), qr!Xprefix:.*X!,
+	'set and volatile map');
+
+# even if a separate flush step is used, such as with return,
+# which uses ngx_http_complex_value(), an additional flush might happen
+# as a side effect of a variable lookup (notably $document_root and
+# $realpath_root when using root with variables)
+
+like(http_get('/map_root'), qr!Xprefix:X.*X!,
+	'return and volatile map with $document_root');
+
+like(http_get('/map_root_root'), qr!Xprefix:X.*X!,
+	'return and volatile map with $document_root and $realpath_root');
+
+# similarly, map with side effects can cause invalid buffer length
+# during evaluation of $document_root, which uses ngx_http_script_run()
+
+like(http_get('/map_root_overflow'), qr!X.*/map_root_overflowX!,
+	'$document_root with map side effects');
+
+}
+
+# non-cacheable map can be derived from a non-cacheable variable,
+# which also needs to be flushed before getting the map value
+
+like(http_get('/map_flush'), qr!Xwrong:goodX!,
+	'set and volatile map source flush');
 
 # non-indexed access of prefixed variables
 

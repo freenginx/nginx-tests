@@ -24,7 +24,8 @@ select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
 my $t = Test::Nginx->new()
-	->has(qw/stream stream_return stream_map stream_set/);
+	->has(qw/stream stream_return stream_map stream_set http rewrite/)
+	->plan(3);
 
 $t->write_file_expand('nginx.conf', <<'EOF');
 
@@ -42,6 +43,10 @@ stream {
         default "original";
     }
 
+    map 0 $map_capture {
+        ~(?<capture>.*) $capture;
+    }
+
     server {
         listen  127.0.0.1:8082;
         return  $map_var:$set_var;
@@ -54,15 +59,31 @@ stream {
         listen  127.0.0.1:8083;
         return  $set_var;
     }
+
+    server {
+        listen  127.0.0.1:8084;
+        return  "$capture $map_capture";
+    }
 }
 
 EOF
 
-$t->run()->plan(2);
+$t->run();
 
 ###############################################################################
 
 is(stream('127.0.0.1:' . port(8082))->read(), 'new:original', 'set');
 is(stream('127.0.0.1:' . port(8083))->read(), '', 'uninitialized variable');
+
+TODO: {
+todo_skip 'might coredump', 1
+	unless $t->has_version('1.31.3')
+	or $ENV{TEST_NGINX_UNSAFE};
+local $TODO = 'not yet', $t->todo_alerts();
+
+is(stream('127.0.0.1:' . port(8084))->read(), '0 0',
+	'set and map with side effects');
+
+}
 
 ###############################################################################

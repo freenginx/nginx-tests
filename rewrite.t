@@ -21,7 +21,7 @@ use Test::Nginx;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http rewrite proxy/)->plan(25)
+my $t = Test::Nginx->new()->has(qw/http rewrite proxy/)->plan(26)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -33,6 +33,10 @@ events {
 
 http {
     %%TEST_GLOBALS_HTTP%%
+
+    map $uri $map_capture {
+       ~(?<capture>.*) $capture;
+    }
 
     server {
         listen       127.0.0.1:8080;
@@ -140,6 +144,10 @@ http {
         location /capture_nested {
             rewrite ^((.*)) /?c=$1&d=$2;
             return 200 "uri:$uri args:$args";
+        }
+
+        location /map/ {
+            rewrite ^ $capture$map_capture redirect;
         }
 
         location /break {
@@ -271,6 +279,17 @@ todo_skip 'might coredump', 1
 like(http_get('/capture_nested/%25?a=b'),
 	qr!^uri:/ args:c=/capture_nested/%25&d=/capture_nested/%25&a=b$!ms,
 	'escape with nested captures');
+
+}
+
+TODO: {
+todo_skip 'might coredump', 1
+	unless $t->has_version('1.31.3')
+	or $ENV{TEST_NGINX_UNSAFE};
+local $TODO = 'not yet', $t->todo_alerts();
+
+like(http_get('/map/test-long-uri'), qr!Location: .*/map/test-long-uri!ms,
+	'rewrite and map with side effects');
 
 }
 
