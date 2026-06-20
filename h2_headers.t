@@ -23,7 +23,7 @@ use Test::Nginx::HTTP2;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http http_v2 proxy rewrite/)->plan(103)
+my $t = Test::Nginx->new()->has(qw/http http_v2 proxy rewrite/)->plan(105)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -86,6 +86,23 @@ http {
             add_header X-Cookie-a $cookie_a;
             add_header X-Cookie-c $cookie_c;
             return 200;
+        }
+        location /long_value {
+            set $a $args;
+            set $a $a$a$a$a$a$a$a$a$a$a;
+            set $a $a$a$a$a$a$a$a$a$a$a;
+            set $a $a$a$a$a$a$a$a$a$a$a;
+            set $a $a$a$a$a$a$a$a$a$a$a;
+            add_header X-Long $a;
+            return 200;
+        }
+        location /long_location {
+            set $a $args;
+            set $a $a$a$a$a$a$a$a$a$a$a;
+            set $a $a$a$a$a$a$a$a$a$a$a;
+            set $a $a$a$a$a$a$a$a$a$a$a;
+            set $a $a$a$a$a$a$a$a$a$a$a;
+            return 302 $a;
         }
     }
 
@@ -623,6 +640,29 @@ is($frame->{headers}->{'x-uc-a'}, 'b',
 	'multiple response header proxied - upstream cookie');
 is($frame->{headers}->{'x-uc-c'}, 'd',
 	'multiple response header proxied - upstream cookie 2');
+
+# too long response header value
+
+$s = Test::Nginx::HTTP2->new();
+$sid = $s->new_stream({ path => '/long_value?' . ('~' x 210) });
+$frames = $s->read(all => [{ type => 'RST_STREAM' }], wait => 0.5);
+
+($frame) = grep { $_->{type} eq "RST_STREAM" } @$frames;
+is($frame->{code}, 2, 'too long response header value');
+
+TODO: {
+local $TODO = 'not yet' unless $t->has_version('1.31.3');
+
+# too long Location response header value
+
+$s = Test::Nginx::HTTP2->new();
+$sid = $s->new_stream({ path => '/long_location?' . ('~' x 210) });
+$frames = $s->read(all => [{ type => 'RST_STREAM' }], wait => 0.5);
+
+($frame) = grep { $_->{type} eq "RST_STREAM" } @$frames;
+is($frame->{code}, 2, 'too long response location');
+
+}
 
 # CONTINUATION in response
 # put three long header fields (not less than SETTINGS_MAX_FRAME_SIZE/2)
