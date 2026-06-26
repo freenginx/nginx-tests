@@ -21,7 +21,7 @@ use Test::Nginx;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http charset perl/)->plan(1)
+my $t = Test::Nginx->new()->has(qw/http charset perl/)->plan(2)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -78,6 +78,38 @@ http {
                 return OK;
             }';
         }
+
+        location /invalid {
+            perl 'sub {
+                my $r = shift;
+                $r->send_http_header("text/html");
+                return OK if $r->header_only;
+
+                # 2-byte invalid character
+
+                $r->print("\xc2\x61");
+                $r->print("\xc2");
+                $r->print("\x61");
+
+                # 3-byte invalid character
+
+                $r->print("\xe2\x61\x61");
+                $r->print("\xe2");
+                $r->print("\x61");
+                $r->print("\x61");
+
+                # 4-byte invalid character
+
+                $r->print("\xf0\x61\x61\x61");
+
+                $r->print("\xf0");
+                $r->print("\x61");
+                $r->print("\x61");
+                $r->print("\x61");
+
+                return OK;
+            }';
+        }
     }
 }
 
@@ -95,6 +127,18 @@ todo_skip 'might coredump', 1
 	or $ENV{TEST_NGINX_UNSAFE};
 
 like(http_get('/multi'), qr/^CCTT&#65536;&#65536;$/m, 'multiple buffers');
+
+}
+
+TODO: {
+local $TODO = 'not yet'
+        unless $t->has_version('1.31.3');
+todo_skip 'might coredump', 1
+	unless $t->has_version('1.31.3')
+	or $ENV{TEST_NGINX_UNSAFE};
+
+like(http_get('/invalid'), qr/^\Q???a?a?aa?aa\E$/m,
+	'invalid in multiple buffers');
 
 }
 
