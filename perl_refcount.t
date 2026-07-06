@@ -22,7 +22,7 @@ use Test::Nginx;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http perl/)->plan(4)
+my $t = Test::Nginx->new()->has(qw/http perl/)->plan(6)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -85,6 +85,27 @@ http {
                 return OK;
             }';
         }
+
+        location /stale {
+            perl 'sub {
+                my $r = shift;
+                $prev->log_error(0, "next request arrived") if $prev;
+                $r->send_http_header;
+                $prev->print("print to stale request") if $prev;
+                $prev = $r;
+                return OK;
+            }';
+        }
+
+        location /bless {
+            perl 'sub {
+                my $v = 10;
+                my $r = bless \$v, "nginx";
+                $r->send_http_header;
+                $r->print("it works");
+                return OK;
+            }';
+        }
     }
 }
 
@@ -118,6 +139,26 @@ like(http(
 
 like(http_get('/print'), qr/works/, 'perl print in eval');
 like(http_get('/redirect'), qr/works/, 'perl redirect in eval');
+
+}
+
+TODO: {
+local $TODO = 'not yet' unless $t->has_version('1.31.3');
+todo_skip 'might coredump', 2 unless $t->has_version('1.31.3')
+	or $ENV{TEST_NGINX_UNSAFE};
+
+# the $r request object might be preserved by the code,
+# and usage of such invalid request objects needs to be prevented;
+# note though that the stale request might happen to match the active one
+
+http_get('/stale');
+like(http_get('/stale'), qr/500 Internal|stale request/,
+	'stale request object');
+
+# similarly, if the request object is constructed with bless()
+# with an incorrect pointer, it should be rejected
+
+like(http_get('/bless'), qr/500 Internal/, 'invalid request object');
 
 }
 
