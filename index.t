@@ -1,5 +1,6 @@
 #!/usr/bin/perl
 
+# (C) Maxim Dounin
 # (C) Sergey Kandaurov
 # (C) Nginx, Inc.
 
@@ -22,7 +23,7 @@ use Test::Nginx;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http rewrite map/)->plan(16)
+my $t = Test::Nginx->new()->has(qw/http rewrite map/)->plan(17)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -41,6 +42,11 @@ http {
 
     map $uri $map_shrink {
        ~(?<shrink>) "";
+    }
+
+    map $index $map_volatile {
+       volatile;
+       ~^ $index;
     }
 
     server {
@@ -99,10 +105,19 @@ http {
             alias %%TESTDIR%%/;
             index index.$capture.$map_capture /index.html;
         }
+
         location /shrink/ {
             alias %%TESTDIR%%/;
             set $shrink "some-long-variable-value";
             index index$shrink$map_shrink.html /index.html;
+        }
+
+        location /volatile/ {
+            alias %%TESTDIR%%/;
+            set $index notfound.html;
+            set $dummy $map_volatile;
+            set $index index.html;
+            index $map_volatile;
         }
     }
 }
@@ -153,6 +168,14 @@ local $TODO = 'not yet' unless $t->has_version('1.31.3');
 
 like(http_get('/shrink/'), qr!X-URI: /shrink/index.html\x0d?($).*body!ms,
 	'index and map with shrink side effect');
+
+}
+
+TODO: {
+local $TODO = 'not yet' unless $t->has_version('1.31.4');
+
+like(http_get('/volatile/'), qr!X-URI: /volatile/index.html\x0d?($).*body!ms,
+	'index flushes non-cacheable variables');
 
 }
 
