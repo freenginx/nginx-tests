@@ -21,7 +21,7 @@ use Test::Nginx;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http rewrite proxy/)->plan(26)
+my $t = Test::Nginx->new()->has(qw/http rewrite proxy/)->plan(27)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -148,6 +148,10 @@ http {
 
         location /map/ {
             rewrite ^ $capture$map_capture redirect;
+        }
+
+        location /map_return/ {
+            return 200 $capture$map_capture;
         }
 
         location /break {
@@ -283,13 +287,16 @@ like(http_get('/capture_nested/%25?a=b'),
 }
 
 TODO: {
-todo_skip 'might coredump', 1
+todo_skip 'might coredump', 2
 	unless $t->has_version('1.31.3')
 	or $ENV{TEST_NGINX_UNSAFE};
 local $TODO = 'not yet', $t->todo_alerts();
 
 like(http_get('/map/test-long-uri'), qr!Location: .*/map/test-long-uri!ms,
 	'rewrite and map with side effects');
+
+like(http_get('/map_return/test-long-uri'), qr!.*/map_return/test-long-uri!,
+	'return and map with side effects');
 
 }
 
