@@ -123,10 +123,12 @@ $s->check(qr/^\S+ BAD/, 'auth without arguments');
 
 # auth plain
 
-$s->send('1 AUTHENTICATE PLAIN ' . encode_base64("\0test\@example.com\0bad", ''));
+$s->send('1 AUTHENTICATE PLAIN '
+	. encode_base64("\0test\@example.com\0bad", ''));
 $s->check(qr/^\S+ NO/, 'auth plain with bad password');
 
-$s->send('1 AUTHENTICATE PLAIN ' . encode_base64("\0test\@example.com\0secret", ''));
+$s->send('1 AUTHENTICATE PLAIN '
+	. encode_base64("\0test\@example.com\0secret", ''));
 $s->ok('auth plain');
 
 # auth login simple

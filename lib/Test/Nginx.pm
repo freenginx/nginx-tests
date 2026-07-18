@@ -829,7 +829,8 @@ sub log_core {
 	}
 
 	$msg =~ s/^/# $prefix/gm;
-	$msg =~ s/([^\x20-\x7e])/sprintf('\\x%02x', ord($1)) . (($1 eq "\n") ? "\n" : '')/gmxe;
+	$msg =~ s/([^\x20-\x7e])/sprintf('\\x%02x', ord($1))
+		. (($1 eq "\n") ? "\n" : '')/gmxe;
 	$msg .= "\n" unless $msg =~ /\n\Z/;
 	print $msg;
 }

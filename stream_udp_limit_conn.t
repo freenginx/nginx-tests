@@ -97,7 +97,8 @@ is($s->io('1', read_timeout => 0.4), '1', 'passed new request');
 is(dgram('127.0.0.1:' . port(8981))->io('1', read_timeout => 0.1), '',
 	'rejected new session');
 is(dgram('127.0.0.1:' . port(8982))->io('1'), '1', 'passed different zone');
-is(dgram('127.0.0.1:' . port(8983))->io('1'), '1', 'passed same zone unlimited');
+is(dgram('127.0.0.1:' . port(8983))->io('1'), '1',
+	'passed same zone unlimited');
 
 sleep 1;	# waiting for proxy_timeout to expire
 

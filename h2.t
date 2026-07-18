@@ -604,7 +604,8 @@ ok($frame, 'client header timeout - PING');
 # the rest of frame is received after client header timeout
 
 $s = Test::Nginx::HTTP2->new(port(8087));
-$sid = $s->new_stream({ path => '/t2.html', split => [20], split_delay => 2.1 });
+$sid = $s->new_stream({ path => '/t2.html', split => [20],
+	split_delay => 2.1 });
 $frames = $s->read(all => [{ type => 'RST_STREAM' }]);
 
 ($frame) = grep { $_->{type} eq "RST_STREAM" } @$frames;

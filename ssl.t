@@ -84,7 +84,8 @@ http {
             return 200 "body $ssl_client_s_dn:$ssl_client_s_dn_legacy";
         }
         location /time {
-            return 200 "body $ssl_client_v_start!$ssl_client_v_end!$ssl_client_v_remain";
+            return 200
+            "body $ssl_client_v_start!$ssl_client_v_end!$ssl_client_v_remain";
         }
 
         location /body {

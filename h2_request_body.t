@@ -213,7 +213,8 @@ $sid = $s->new_stream({ body => 'TEST', headers => [
 $frames = $s->read(all => [{ sid => $sid, fin => 1 }]);
 
 ($frame) = grep { $_->{type} eq "HEADERS" } @$frames;
-is($frame->{headers}->{':status'}, 400, 'request body less than content-length');
+is($frame->{headers}->{':status'}, 400,
+	'request body less than content-length');
 
 $sid = $s->new_stream({ body => 'TEST', headers => [
 	{ name => ':method', value => 'GET', mode => 0 },
@@ -224,7 +225,8 @@ $sid = $s->new_stream({ body => 'TEST', headers => [
 $frames = $s->read(all => [{ sid => $sid, fin => 1 }]);
 
 ($frame) = grep { $_->{type} eq "HEADERS" } @$frames;
-is($frame->{headers}->{':status'}, 400, 'request body more than content-length');
+is($frame->{headers}->{':status'}, 400,
+	'request body more than content-length');
 
 # client_max_body_size
 

@@ -83,7 +83,8 @@ my $r = http_get('/proxy?xar=/index.html');
 like($r, qr/xar: \/index.html uri: \/index.html/, 'X-Accel-Redirect works');
 like($r, qr/^Content-Type: text\/blah/m, 'Content-Type preserved');
 like($r, qr/^Set-Cookie: blah=blah/m, 'Set-Cookie preserved');
-like($r, qr/^Content-Disposition: attachment/m, 'Content-Disposition preserved');
+like($r, qr/^Content-Disposition: attachment/m,
+	'Content-Disposition preserved');
 like($r, qr/^Cache-Control: no-cache/m, 'Cache-Control preserved');
 like($r, qr/^Expires: fake/m, 'Expires preserved');
 like($r, qr/^Accept-Ranges: parrots/m, 'Accept-Ranges preserved');

@@ -731,7 +731,8 @@ $frames = $s->read(all => [{ sid => $sid, fin => 1 }]);
 ($frame) = grep { $_->{type} eq "HEADERS" } @$frames;
 isnt($frame->{headers}->{'x-referer'}, 'see-this', 'newline in request header');
 
-is($frame->{headers}->{':status'}, 400, 'newline in request header - bad request');
+is($frame->{headers}->{':status'}, 400,
+	'newline in request header - bad request');
 
 # invalid header name as seen with underscore should not lead to ignoring rest
 
