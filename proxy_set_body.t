@@ -97,7 +97,8 @@ TODO: {
 todo_skip 'might coredump', 2
 	unless $t->has_version('1.31.3')
 	or $ENV{TEST_NGINX_UNSAFE};
-local $TODO = 'not yet', $t->todo_alerts();
+local $TODO = 'not yet', $t->todo_alerts()
+	unless $t->has_version('1.31.4');
 
 like(http_get('/map'), qr!X-Body: body .* /map end!,
 	'proxy_set_body and map with side effects');

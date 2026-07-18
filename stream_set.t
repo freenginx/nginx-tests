@@ -79,7 +79,8 @@ TODO: {
 todo_skip 'might coredump', 1
 	unless $t->has_version('1.31.3')
 	or $ENV{TEST_NGINX_UNSAFE};
-local $TODO = 'not yet', $t->todo_alerts();
+local $TODO = 'not yet', $t->todo_alerts()
+	unless $t->has_version('1.31.4');
 
 is(stream('127.0.0.1:' . port(8084))->read(), '0 0',
 	'set and map with side effects');

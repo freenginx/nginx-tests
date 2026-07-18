@@ -201,7 +201,8 @@ TODO: {
 todo_skip 'might coredump', 5
 	unless $t->has_version('1.31.3')
 	or $ENV{TEST_NGINX_UNSAFE};
-local $TODO = 'not yet', $t->todo_alerts();
+local $TODO = 'not yet', $t->todo_alerts()
+	unless $t->has_version('1.31.4');
 
 # map can change other variables via named captures,
 # resulting in invalid buffer length calculations

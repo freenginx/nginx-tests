@@ -416,7 +416,8 @@ TODO: {
 todo_skip 'might coredump', 1
 	unless $t->has_version('1.31.3')
 	or $ENV{TEST_NGINX_UNSAFE};
-local $TODO = 'not yet', $t->todo_alerts();
+local $TODO = 'not yet', $t->todo_alerts()
+	unless $t->has_version('1.31.4');
 
 like(http_get('/map/test-long-uri'), qr!404 Not!,
 	'try_files and map with side effects');

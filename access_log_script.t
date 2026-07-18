@@ -72,7 +72,8 @@ TODO: {
 todo_skip 'might coredump', 2
 	unless $t->has_version('1.31.3')
 	or $ENV{TEST_NGINX_UNSAFE};
-local $TODO = 'not yet', $t->todo_alerts();
+local $TODO = 'not yet', $t->todo_alerts()
+	unless $t->has_version('1.31.4');
 
 # map with side effects might result in incorrect buffer size
 # and buffer overrun
