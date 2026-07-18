@@ -70,7 +70,7 @@ $t->stop();
 
 my $log = $t->read_file('map.log');
 
-like($log, qr!start /map /map end!, 'log and map with side effects');
+like($log, qr!start \d+ \d+ end!, 'log and map with side effects');
 
 }
 
