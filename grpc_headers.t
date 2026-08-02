@@ -23,7 +23,7 @@ select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
 my $t = Test::Nginx->new()
-	->has(qw/http http_v2 grpc rewrite map/)->plan(7)
+	->has(qw/http http_v2 grpc rewrite map/)->plan(8)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -38,6 +38,10 @@ http {
 
     map $uri $map_capture {
         ~(?<capture>.*) $capture;
+    }
+
+    map $uri $map_args {
+        ~(?<args>.*) $args;
     }
 
     large_client_header_buffers 2 4m;
@@ -83,6 +87,11 @@ http {
             set $a $a$a$a$a$a$a$a$a$a$a;
             set $a $a$a$a$a$a$a$a$a$a$a;
             set $a $a$a$a$a$a$a$a$a$a$a;
+        }
+
+        location /map_args {
+            grpc_pass 127.0.0.1:8081;
+            grpc_set_header X-Blah $map_args;
         }
     }
 
@@ -153,6 +162,21 @@ local $TODO = 'not yet' unless $t->has_version('1.31.3');
 
 like(http_get('/long_set?' . ('~' x 210)), qr!500 Internal!,
 	'too long set header value');
+
+}
+
+TODO: {
+todo_skip 'might coredump', 1
+	unless $t->has_version('1.31.4')
+	or $ENV{TEST_NGINX_UNSAFE};
+local $TODO = 'not yet' unless $t->has_version('1.31.4');
+
+# when $args is changed as a side effect of a variable lookup
+# during grpc_set_header evaluation, buffer allocated might be
+# to small
+
+like(http_get('/map_args/' . ('x' x 512)), qr!/map_args!,
+	'$args changed as side effect');
 
 }
 

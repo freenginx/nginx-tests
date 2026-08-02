@@ -21,7 +21,7 @@ use Test::Nginx;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http proxy rewrite map/)->plan(4)
+my $t = Test::Nginx->new()->has(qw/http proxy rewrite map/)->plan(5)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -36,6 +36,10 @@ http {
 
     map $uri $map_capture {
         ~(?<capture>.*) $capture;
+    }
+
+    map $uri $map_args {
+        ~(?<args>.*) $args;
     }
 
     server {
@@ -72,6 +76,11 @@ http {
             proxy_set_header X-Header "header $capture $map_capture end";
         }
 
+        location /map_args {
+            proxy_pass http://127.0.0.1:8080/body;
+            proxy_set_header X-Header "header $map_args end";
+        }
+
         location /body {
             add_header X-Body $request_body;
             add_header X-Header $http_x_header;
@@ -104,6 +113,21 @@ like(http_get('/map'), qr!X-Body: body .* /map end!,
 	'proxy_set_body and map with side effects');
 like(http_get('/map_header'), qr!X-Header: header .* /map_header end!,
 	'proxy_set_header and map with side effects');
+
+}
+
+TODO: {
+todo_skip 'might coredump', 1
+	unless $t->has_version('1.31.4')
+	or $ENV{TEST_NGINX_UNSAFE};
+local $TODO = 'not yet' unless $t->has_version('1.31.4');
+
+# when $args is changed as a side effect of a variable lookup
+# during proxy_set_header or proxy_set_body evaluation, buffer
+# allocated might be to small
+
+like(http_get('/map_args/' . ('x' x 512)), qr!/map_args!,
+	'$args changed as side effect');
 
 }
 
