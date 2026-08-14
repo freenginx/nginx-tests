@@ -22,7 +22,7 @@ use Test::Nginx;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http perl/)->plan(6)
+my $t = Test::Nginx->new()->has(qw/http perl/)->plan(8)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -106,6 +106,34 @@ http {
                 return OK;
             }';
         }
+
+        location /print_changed {
+            perl 'sub {
+                my $r = shift;
+                $r->send_http_header;
+                my $foo = "it";
+                $foo .= " works";
+                $r->print($foo);
+                $foo = " changed";
+                $r->print($foo);
+                return OK;
+            }';
+        }
+
+        location /print_readonly_changed {
+            perl 'sub {
+                my $r = shift;
+                $r->send_http_header;
+                my $foo = "it";
+                $foo .= " works";
+                Internals::SvREADONLY($foo, 1);
+                $r->print($foo);
+                Internals::SvREADONLY($foo, 0);
+                $foo = " changed";
+                $r->print($foo);
+                return OK;
+            }';
+        }
     }
 }
 
@@ -159,6 +187,16 @@ like(http_get('/stale'), qr/500 Internal|stale request/,
 # with an incorrect pointer, it should be rejected
 
 like(http_get('/bless'), qr/500 Internal/, 'invalid request object');
+
+}
+
+TODO: {
+local $TODO = 'not yet' unless $t->has_version('1.31.4');
+
+like(http_get('/print_changed'), qr/works changed/,
+	'perl print scalar changed');
+like(http_get('/print_readonly_changed'), qr/works changed/,
+	'perl print scalar readonly changed');
 
 }
 
