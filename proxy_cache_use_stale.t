@@ -1,5 +1,6 @@
 #!/usr/bin/perl
 
+# (C) Maxim Dounin
 # (C) Sergey Kandaurov
 # (C) Nginx, Inc.
 
@@ -25,7 +26,7 @@ select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
 my $t = Test::Nginx->new()
-	->has(qw/http proxy cache rewrite limit_req ssi/)->plan(35)
+	->has(qw/http proxy cache rewrite limit_req ssi map/)->plan(37)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -41,6 +42,11 @@ http {
     proxy_cache_path cache keys_zone=one:1m;
 
     limit_req_zone $binary_remote_addr zone=slow:1m rate=10r/m;
+
+    map $uri $map {
+        volatile;
+        ~(nomatch) 1;
+    }
 
     server {
         listen       127.0.0.1:8080;
@@ -80,6 +86,11 @@ http {
 
             location ~ /(reg)(?P<name>exp).html {
                 proxy_pass http://127.0.0.1:8081/$1$name.html;
+            }
+
+            location ~ /map_(regexp.html) {
+                proxy_pass http://127.0.0.1:8081/$map$1;
+                add_header X-Cache-Status $upstream_cache_status:$map:$1;
             }
 
             location /updating/ {
@@ -172,6 +183,7 @@ get('/next/tt.html', 'max-age=1, stale-if-error=5');
 get('/t8.html', 'stale-while-revalidate=20');
 get('/escape.htm%6C', 'max-age=1, stale-while-revalidate=20');
 get('/regexp.html', 'max-age=1, stale-while-revalidate=20');
+get('/map_regexp.html', 'max-age=1, stale-while-revalidate=20');
 
 sleep 2;
 
@@ -208,6 +220,22 @@ like(http_get('/t5.html'), qr/REVALIDATED/, 's-w-r - foreground revalidated');
 
 like(http_get('/regexp.html'), qr/STALE/, 's-w-r - regexp background update');
 like(http_get('/regexp.html'), qr/HIT/, 's-w-r - regexp revalidated');
+
+TODO: {
+todo_skip 'might coredump', 2
+	unless $t->has_version('1.31.4')
+	or $ENV{TEST_NGINX_UNSAFE};
+local $TODO = 'not yet' unless $t->has_version('1.31.4');
+
+# when r->captures was reallocated but no match happened, positional captures
+# used uninitialized offsets from newly allocated r->captures
+
+like(http_get('/map_regexp.html'), qr/STALE::regexp.html/,
+	's-w-r - regexp and map background update');
+like(http_get('/map_regexp.html'), qr/HIT::regexp.html/,
+	's-w-r - regexp and map revalidated');
+
+}
 
 # UPDATING while s-w-r
 
