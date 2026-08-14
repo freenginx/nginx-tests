@@ -24,7 +24,8 @@ use Test::Nginx qw/ :DEFAULT http_end /;
 select STDERR; $| = 1;
 select STDOUT; $| = 1;
 
-my $t = Test::Nginx->new()->has(qw/http proxy cache rewrite limit_req ssi/)
+my $t = Test::Nginx->new()
+	->has(qw/http proxy cache rewrite limit_req ssi/)->plan(35)
 	->write_file_expand('nginx.conf', <<'EOF');
 
 %%TEST_GLOBALS%%
@@ -37,9 +38,9 @@ events {
 http {
     %%TEST_GLOBALS_HTTP%%
 
-    proxy_cache_path   %%TESTDIR%%/cache  levels=1:2  keys_zone=NAME:1m;
+    proxy_cache_path cache keys_zone=one:1m;
 
-    limit_req_zone  $binary_remote_addr  zone=one:1m  rate=10r/m;
+    limit_req_zone $binary_remote_addr zone=slow:1m rate=10r/m;
 
     server {
         listen       127.0.0.1:8080;
@@ -51,65 +52,54 @@ http {
         }
 
         location /escape {
-            proxy_pass    http://127.0.0.1:8081;
-            proxy_cache   NAME;
-            proxy_cache_background_update  on;
+            proxy_pass http://127.0.0.1:8081;
+            proxy_cache one;
+            proxy_cache_background_update on;
             add_header X-Cache-Status $upstream_cache_status;
         }
 
         location / {
-            proxy_pass    http://127.0.0.1:8081;
+            proxy_pass http://127.0.0.1:8081;
 
-            proxy_cache   NAME;
-
-            proxy_cache_key  $uri;
-
-            proxy_cache_revalidate  on;
-
-            proxy_cache_background_update  on;
+            proxy_cache one;
+            proxy_cache_key $uri;
+            proxy_cache_revalidate on;
+            proxy_cache_background_update on;
 
             add_header X-Cache-Status $upstream_cache_status;
 
             location /t4.html {
-                proxy_pass    http://127.0.0.1:8081/t.html;
-
-                proxy_cache_revalidate  off;
+                proxy_pass http://127.0.0.1:8081/t.html;
+                proxy_cache_revalidate off;
             }
 
             location /t5.html {
-                proxy_pass    http://127.0.0.1:8081/t.html;
-
-                proxy_cache_background_update  off;
+                proxy_pass http://127.0.0.1:8081/t.html;
+                proxy_cache_background_update off;
             }
 
             location ~ /(reg)(?P<name>exp).html {
-                proxy_pass    http://127.0.0.1:8081/$1$name.html;
-
-                proxy_cache_background_update  on;
+                proxy_pass http://127.0.0.1:8081/$1$name.html;
             }
 
             location /updating/ {
-                proxy_pass    http://127.0.0.1:8081/;
-
-                proxy_cache_use_stale  updating;
+                proxy_pass http://127.0.0.1:8081/;
+                proxy_cache_use_stale updating;
             }
 
             location /next/ {
-                proxy_pass    http://127.0.0.1:8081/;
-
-                proxy_next_upstream  http_500;
+                proxy_pass http://127.0.0.1:8081/;
+                proxy_next_upstream http_500;
             }
 
             location /t7.html {
-                proxy_pass    http://127.0.0.1:8081;
-
-                sendfile_max_chunk  4k;
+                proxy_pass http://127.0.0.1:8081;
+                sendfile_max_chunk 4k;
             }
 
             location /t8.html {
-                proxy_pass    http://127.0.0.1:8081/t.html;
-
-                proxy_cache_valid  1s;
+                proxy_pass http://127.0.0.1:8081/t.html;
+                proxy_cache_valid 1s;
             }
 
             if ($arg_if) {
@@ -117,6 +107,7 @@ http {
             }
         }
     }
+
     server {
         listen       127.0.0.1:8081;
         server_name  localhost;
@@ -134,7 +125,7 @@ http {
         location / { }
 
         location /t6.html {
-            limit_req zone=one burst=2;
+            limit_req zone=slow burst=2;
         }
 
         location /t9.html {
@@ -156,7 +147,7 @@ $t->write_file('ssi.html', 'xxx <!--#include virtual="/t9.html" --> xxx');
 $t->write_file('escape.html', 'SEE-THIS');
 $t->write_file('regexp.html', 'SEE-THIS');
 
-$t->run()->plan(35);
+$t->run();
 
 ###############################################################################
 
