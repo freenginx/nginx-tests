@@ -78,8 +78,7 @@ like(http_get('/multi'), qr/AND-THIS/, 'bad backend - multiple packets');
 like(http_get('/uselen'), qr/SEE-THIS/, 'content-length actually used');
 
 TODO: {
-local $TODO = 'not yet';
-local $SIG{__WARN__} = sub {};
+local $TODO = 'not yet' unless $t->has_version('1.31.4');;
 
 like(http_get('/nolen'), qr/SEE-THIS/, 'bad backend - no content length');
 
